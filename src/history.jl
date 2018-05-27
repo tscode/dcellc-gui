@@ -41,9 +41,17 @@ struct MoveSpot <: Action
   to :: Tuple{Int, Int}
 end
 
-
-struct SaveLabels <: Action
+struct AddTrainFrame <: Action
+  region :: NTuple{4, Int}
 end
+
+struct RemoveTrainFrame <: Action
+  region :: NTuple{4, Int}
+end
+
+struct SaveLabels <: Action end
+struct ApplyModelStart <: Action end
+struct ApplyModelEnd <: Action end
 
 Base.push!(history :: History, a :: Action) = push!(history.actions, a)
 
@@ -54,6 +62,10 @@ text(a :: RemoveImages) = isempty(a.imgs) ? "" : "Removed $(length(a.imgs)) imag
 text(a :: AddSpot) = "Added spot at $((a.spot[1], a.spot[2]))"
 text(a :: RemoveSpot) = "Removed spot at $((a.spot[1], a.spot[2]))"
 text(a :: MoveSpot) = "Moved spot from $(a.from) to $(a.to)"
+text(a :: AddTrainFrame) = "Added train frame"
+text(a :: RemoveTrainFrame) = "Removed train frame"
 
 text(a :: SaveLabels) = "Saved labels"
+text(a :: ApplyModelStart) = "Density computation started..."
+text(a :: ApplyModelEnd) = "Density computation finished"
 

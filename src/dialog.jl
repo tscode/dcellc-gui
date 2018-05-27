@@ -33,3 +33,10 @@ function exportlessondialog(root, button)
     return save_dialog("Export lesson as", root, (ext,))
   end
 end
+
+function trainedmodeldialog(root, button)
+  return map(button, init="") do _
+    ext = "*.dccm"
+    return save_dialog("Save trained model as", root, (ext,))
+  end
+end

@@ -15,7 +15,15 @@ function TrainFrame(id, name, image, label, imagepath, region)
   return TrainFrame(id, name, image, label, imagepath, labelpath, region)
 end
 
-function inittraining(build, trainmodelbutton)
+function inittraining(build, trainmodelbutton, addmodellist, modellist, history)
+
+  # A dictionary of models and the corresponding constructors
+  modeldict = Dict(
+    "unetlike"    => UNetLike,
+    "fcrna"       => FCRNA,
+    "multiscale3" => Multiscale3
+  )
+
 
   # The training window
   root = build["root"]
@@ -24,7 +32,7 @@ function inittraining(build, trainmodelbutton)
 
   # Dropdowns
   modeldropdown = initmodeldropdown(build["trainingModelChoice"])
-  modeltype = GtkReactive.dropdown(["multiscale3", "fcrna", "unetlike"], widget=build["trainingModelType"])
+  modeltype = GtkReactive.dropdown([keys(modeldict)...], widget=build["trainingModelType"])
   optimizer = GtkReactive.dropdown(["adam", "rmsprop", "nesterov"], widget=build["trainingOptimizer"])
 
   # Checkboxes
@@ -44,7 +52,7 @@ function inittraining(build, trainmodelbutton)
 
   # Buttons
   exportlesson  = GtkReactive.button("Export Lesson...", widget=build["trainingExportLesson"])
-  starttraining = GtkReactive.button("Start Training", widget=build["trainingStart"])
+  starttraining = GtkReactive.button("Train and save...", widget=build["trainingStart"])
 
   # Open the training window per click on the train button
   inittrainwindow(trainwindow, trainmodelbutton)
@@ -52,30 +60,81 @@ function inittraining(build, trainmodelbutton)
 
   # Exporting labels
   exportlessonfile = exportlessondialog(root, exportlesson)
+  trainedmodelfile = trainedmodeldialog(root, starttraining)
 
   # Init trainframe and add the trainlistview
   trainlist = TrainFrame[]
-  newtrainframe = inittrainlistview(root, trainlistbox, trainlist)
+  newtrainframe = inittrainlistview(root, trainlistbox, trainlist, history)
+
+  # Model that is currently selected in training panel
+  currentmodel = map(modeldropdown.signal, typ=Any) do dd
+    if dd == "None"
+      setproperty!(modeltype.widget, :sensitive, true)
+      setproperty!(batchnorm.widget, :sensitive, true)
+      setproperty!(greyscale.widget, :sensitive, true)
+      return nothing
+    else 
+      setproperty!(modeltype.widget, :sensitive, false)
+      setproperty!(batchnorm.widget, :sensitive, false)
+      setproperty!(greyscale.widget, :sensitive, false)
+
+      ml = value(modellist)
+      return ml[dd]
+    end
+  end
+
+  # React on changes of the modellist
+  foreach(modellist) do list
+    println("HEEEEY")
+    for (modelname, _) in list
+      pushchoice!(modeldropdown, modelname) 
+    end
+  end
+
+  function getlesson(embeddlabel, embeddimage)
+    selections = getselections(value(trainlist), embeddlabel, embeddimage)
+    cm = value(currentmodel)
+    if cm != nothing
+      model = cm.model
+      it = imgtype(model)
+      bn = hasbatchnorm(model) 
+    else
+      model = modeldict[value(modeltype)]
+      it = value(greyscale) ? GreyscaleImage : RGBImage
+      bn = value(batchnorm)
+    end
+    return Lesson(model,
+                  imgtype = it,
+                  batchnorm = bn,
+                  folder    = "", # TODO
+                  selections = selections,
+                  optimizer = value(optimizer),
+                  lr        = value(learningrate),
+                  imageop   = Id(), # TODO
+                  epochs    = value(epochs),
+                  batchsize = value(batchsize),
+                  patchsize = value(patchsize),
+                  patchmode = value(patchmode),
+                  kernelsize   = value(kernelsize),
+                  kernelheight = value(kernelheight))
+  end
 
   # React on exports of the lessonfile
   foreach(exportlessonfile) do file
-    selections = getselections(value.((trainlist, embeddlabel, embeddimage))...)
-    lesson = Lesson(FCRNA,
-                    folder    = "", # TODO
-                    selections = selections,
-                    imgtype   = value(greyscale) ? GreyscaleImage : RGBImage,
-                    batchnorm = value(batchnorm),
-                    optimizer = value(optimizer),
-                    lr        = value(learningrate),
-                    imageop   = Id(), # TODO
-                    epochs    = value(epochs),
-                    batchsize = value(batchsize),
-                    patchsize = value(patchsize),
-                    patchmode = value(patchmode),
-                    kernelsize   = value(kernelsize),
-                    kernelheight = value(kernelheight))
-
+    lesson = getlesson(value(embeddlabel), value(embeddimage))
     lessonsave(file, lesson)
+  end
+
+  foreach(trainedmodelfile) do file
+    lesson = getlesson(true, true)
+    if !isempty(lesson.selections)
+      @async begin
+        model = @fetch train(lesson)
+        modelsave(file, model)
+        push!(addmodellist, [file])
+      end
+      return nothing
+    end
   end
 
   # Return the signal that is to be populated in the main window
@@ -108,13 +167,14 @@ function inittrainwindow(window, button)
 end
 
 
-function inittrainlistview(root, trainlistbox, trainlist)
+function inittrainlistview(root, trainlistbox, trainlist, history)
 
   newtrainframe = Signal(Any, nothing)
 
   println("a1")
   store = GtkListStore(Int, String, Int, String)
-  view  = GtkTreeView(GtkTreeModel(store))
+  tmodel = GtkTreeModel(store)
+  view  = GtkTreeView(tmodel)
   push!(trainlistbox, view)
 
 
@@ -127,7 +187,7 @@ function inittrainlistview(root, trainlistbox, trainlist)
       reg = @sprintf "%d-%d x %d-%d" x (x+w-1) y (y+h-1)
       push!(store, (tf.id, tf.name, length(tf.label), reg))
       # Push some history
-      #push!(history, AddTrainFrame())
+      push!(history, AddTrainFrame(tf.region))
     end
     return nothing
   end
@@ -152,13 +212,20 @@ function inittrainlistview(root, trainlistbox, trainlist)
 
   sel = GAccessor.selection(view)
 
-  #signal_connect(root, "key-press-event") do widget, event
-  #  if hasselection(sel) && event.keyval == 0x0000ffff # DELETE
-  #    iter = selected(sel)
-  #    deleteat!(trainlist, index_from_iter(store, iter))
-  #    deleteat!(store, iter)
-  #  end
-  #end
+  signal_connect(root, "key-press-event") do widget, event
+    focused = getproperty(value(view), :has_focus, Bool)
+    if focused && hasselection(sel) && event.keyval == 0x0000ffff # DELETE
+      iter = selected(sel)
+
+      # TODO: Fix Gtk.jl bug for index_from_iter for both models and stores!!
+      index = parse(Int, Gtk.get_string_from_iter(GtkTreeModel(store), iter)) + 1
+      region = trainlist[index].region
+      push!(history, RemoveTrainFrame(region))
+
+      deleteat!(trainlist, index)
+      deleteat!(store, iter)
+    end
+  end
   
   return newtrainframe
 end
@@ -182,7 +249,9 @@ function inittrainselection(newtrainframe, canvas, current, currentframe, curren
     if initrubber(btn) && value(frame) != nothing
       push!(active, true)
       ctxcopy = copy(Graphics.getgc(canvas))
+      @show ctxcopy
       rb.pos1 = rb.pos2 = btn.position
+      @show rb.pos1, rb.pos2
     end
     return nothing
   end
@@ -203,8 +272,13 @@ function inittrainselection(newtrainframe, canvas, current, currentframe, curren
     x2, y2 = imgcoords(bb.xmax, bb.ymax, canvas.widget, zr)
     region = (x1, y1, x2 - x1, y2 - y1)
     @show region
-    tf = TrainFrame(id, frame.name, frame.image, frame.label, frame.path, region)
+    label = crop(frame.label, region...)
+    image = crop(frame.image, region...)
+    tf = TrainFrame(id, frame.name, image, label, frame.path, region)
+    @show tf.name
+    println("here")
     push!(newtrainframe, tf)
+    println("there")
   end
 
   # Finish the rubber banding
@@ -216,3 +290,20 @@ function inittrainselection(newtrainframe, canvas, current, currentframe, curren
     end
   end
 end
+
+# TODO: Bug in GTKReactive.jl!! File it!
+function GtkReactive.rb_erase(r::Cairo.GraphicsContext, rb::GtkReactive.RubberBand, ctxcopy)
+  GtkReactive.rb_set(r, rb)
+  Cairo.save(r)
+  Cairo.reset_transform(r)
+  Cairo.save(ctxcopy)
+  Cairo.reset_transform(ctxcopy)
+  Cairo.set_source(r, ctxcopy)
+  Cairo.set_line_width(r, 3)
+  Cairo.set_dash(r, Float64[])
+  Cairo.set_operator(r, Cairo.OPERATOR_SOURCE) # This is the needed line
+  Cairo.stroke(r)
+  Cairo.restore(r)
+  Cairo.restore(ctxcopy)
+end
+

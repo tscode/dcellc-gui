@@ -271,8 +271,9 @@ end
 # ---------------------------------------------------------------------------- #
 # Draw image and label canvases
 
-function runcanvases(imgcanvas, lblcanvas, currentlbl, currentdens,
-                     currentframe, currentzr, spotconfig, history, showdens)
+function runcanvases(imgcanvas, lblcanvas, currentlbl, 
+                     currentdens, currentframe, currentzr, 
+                     spotconfig, history, showdens, showlabel)
 
   # Mouse signals
   motion  = lblcanvas.mouse.motion
@@ -368,9 +369,11 @@ function runcanvases(imgcanvas, lblcanvas, currentlbl, currentdens,
                 currentdens,
                 currentzr, 
                 nearest, 
-                spotconfig) do can, frame, lbl, dens, zr, ns, config
+                spotconfig,
+                showlabel) do can, frame, lbl, dens, zr, ns, config, sl
 
-    if frame != nothing
+    # Draw labels if there is an active frame and if labels should be drawn
+    if frame != nothing && sl
       println("DRAWING")
 
       cv  = zr.currentview
@@ -417,6 +420,15 @@ function runcanvases(imgcanvas, lblcanvas, currentlbl, currentdens,
         Graphics.stroke(ctx)
       end
     end
+    
+    # Clear the surface if labels should not be shown
+    if !sl
+      ctx = Graphics.getgc(can)
+      Graphics.save(ctx)
+      Cairo.set_operator(ctx, Cairo.OPERATOR_CLEAR)
+      Graphics.paint(ctx)
+      Graphics.restore(ctx)
+    end
   end)
 end
 
@@ -444,24 +456,6 @@ function initcounting(currentframe, threshold)
   return lbl, dens
 end
 
-
-function initcountinfo(countingmanual, countingauto, countingtotal, 
-                       currentdens, currentlbl, currentframe, mergedist)
-
-  foreach(currentdens, currentlbl, 
-          currentframe, mergedist) do dens, lbl, frame, dist
-    # TODO: Mergedist
-    if frame != nothing
-      push!(countingmanual, "$(length(lbl))")
-      push!(countingauto, "$(length(frame.autolabel))")
-      push!(countingtotal, "$(length(lbl) + length(frame.autolabel))")
-    else
-      push!(countingmanual, "--")
-      push!(countingauto, "--")
-      push!(countingtotal, "--")
-    end
-  end
-end
 
 
 # ---------------------------------------------------------------------------- #

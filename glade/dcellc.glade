@@ -101,7 +101,7 @@
   <object class="GtkApplicationWindow" id="root">
     <property name="can_focus">False</property>
     <property name="default_width">1120</property>
-    <property name="default_height">684</property>
+    <property name="default_height">670</property>
     <property name="has_resize_grip">True</property>
     <child type="titlebar">
       <object class="GtkHeaderBar">
@@ -391,7 +391,7 @@
                     </child>
                     <child>
                       <object class="GtkTextView" id="frameInfoText">
-                        <property name="height_request">50</property>
+                        <property name="height_request">40</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="wrap_mode">word</property>
@@ -557,7 +557,7 @@
                     </child>
                     <child>
                       <object class="GtkTextView" id="modelInfoText">
-                        <property name="height_request">50</property>
+                        <property name="height_request">40</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                       </object>
@@ -808,12 +808,14 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkBox">
+                  <object class="GtkGrid">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="halign">center</property>
                     <property name="valign">end</property>
-                    <property name="spacing">15</property>
+                    <property name="row_spacing">5</property>
+                    <property name="column_spacing">15</property>
+                    <property name="row_homogeneous">True</property>
+                    <property name="column_homogeneous">True</property>
                     <child>
                       <object class="GtkButton" id="applyModelButton">
                         <property name="label" translatable="yes">Apply Model</property>
@@ -822,9 +824,8 @@
                         <property name="receives_default">True</property>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">0</property>
                       </packing>
                     </child>
                     <child>
@@ -835,31 +836,41 @@
                         <property name="receives_default">True</property>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">1</property>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="densityToggleButton">
+                        <property name="label" translatable="yes">Show Density</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
+                        <property name="halign">center</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">0</property>
+                        <property name="top_attach">1</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="labelToggleButton">
+                        <property name="label" translatable="yes">Show Label</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
+                        <property name="active">True</property>
+                      </object>
+                      <packing>
+                        <property name="left_attach">1</property>
+                        <property name="top_attach">1</property>
                       </packing>
                     </child>
                   </object>
                   <packing>
                     <property name="expand">True</property>
                     <property name="fill">True</property>
-                    <property name="padding">5</property>
                     <property name="position">3</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkToggleButton" id="densityToggleButton">
-                    <property name="label" translatable="yes">Show Density</property>
-                    <property name="visible">True</property>
-                    <property name="can_focus">True</property>
-                    <property name="receives_default">True</property>
-                    <property name="halign">center</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">4</property>
                   </packing>
                 </child>
               </object>
@@ -1486,7 +1497,7 @@
             </child>
             <child>
               <object class="GtkButton" id="trainingStart">
-                <property name="label" translatable="yes">Start Training</property>
+                <property name="label" translatable="yes">Train and Save...</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>

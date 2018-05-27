@@ -76,7 +76,8 @@ function initframelistview(root, list, box, history)
 
   # The hack begins...
   signal_connect(root, "key-press-event") do widget, event
-    if hasselection(sel) && event.keyval == 0x0000ffff # DELETE
+    focused = getproperty(value(view), :has_focus, Bool)
+    if focused && hasselection(sel) && event.keyval == 0x0000ffff # DELETE
       # Get the index
       index = value(current)
       # Disconnect the signal
@@ -115,12 +116,12 @@ end
 function initlabelsavebutton(button, framelist, history)
   foreach(button) do btn
     frames = value(framelist)
-    for frame in frames
+    for (_, frame) in frames
       if length(frame.label) != 0
         lblsave(splitext(frame.path)[1], frame.label)
       end
     end
-    if frames != nothing && !isempty(frames)
+    if !isempty(frames)
       push!(history, SaveLabels())
     end
   end

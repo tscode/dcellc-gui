@@ -11,10 +11,13 @@ struct ModelDropdown
 end
 
 function pushchoice!(m::ModelDropdown, c::String)
-  push!(m.widget, c)
-  k = length(m.str2int) + 1
-  m.str2int[c] = k
-  m.int2str[k] = c
+  if !haskey(m.str2int, c)
+    push!(m.widget, c)
+    k = length(m.str2int) + 1
+    m.str2int[c] = k
+    m.int2str[k] = c
+  end
+  return nothing
 end
 
 function deletechoice!(m::ModelDropdown, c::String)
@@ -64,30 +67,26 @@ function typestring(m :: NamedModel)
   return s
 end
 
-function initmodellist()
-  return Signal(NamedModel[])
-end
-
-function Base.push!(ml::Signal{Vector{NamedModel}}, m::NamedModel)
+function Base.push!(ml::Signal{Dict{String, NamedModel}}, m::NamedModel)
   v = value(ml)
-  push!(v, m)
+  v[m.name] = m
   push!(ml, v) 
 end
 
-function Base.delete!(ml::Signal{Vector{NamedModel}}, idx)
+function Base.delete!(ml::Signal{Dict{String, NamedModel}}, name::String)
   v = value(ml)
-  delete!(v, idx)
+  delete!(v, name)
   push!(ml, v)
 end
 
 function initmodellist(addmodellist, modeldropdown)
-  modellist = Signal(NamedModel[])
+  modellist = Signal(Dict{String, NamedModel}())
   foreach(addmodellist) do list
     for file in list
       model, name, descr = modelload(file, name=true, description=true)
       date = Dates.unix2datetime(Base.Filesystem.ctime(file))
       m = NamedModel(name, descr, date, model)
-      push!(modellist, m)
+      push!(modellist, m) # this can overwrite previous models!
       pushchoice!(modeldropdown, name)
     end
     last = length(modeldropdown.int2str)
@@ -99,8 +98,7 @@ function initmodellist(addmodellist, modeldropdown)
       return nothing
     else
       ml = value(modellist)
-      idx = find(x -> x.name == dd, ml)[1]
-      return ml[idx]
+      return ml[dd]
     end
   end
 
@@ -123,17 +121,103 @@ function initmodelinfo(currentmodel, name, typ, date, text)
   end
 end
 
-function initapplymodel(currentmodel, currentdensity, currentframe, 
-                        button, progress, history)
-  foreach(button) do btn
+function mergelabel(manual, auto, dist)
+  data = copy(auto.data)
+  for cm in manual
+    filter!(data) do ca
+      norm([(cm .- ca)...]) > dist
+    end
+  end
+  return Label([manual.data; data])
+end
+
+function initcountinfo(countingmanual, countingauto, countingtotal, 
+                       currentdens, currentlbl, currentframe, threshold, mergedist)
+
+  foreach(currentdens, currentlbl, 
+          currentframe, threshold, mergedist) do dens, lbl, frame, thr, dist
+    # TODO: Mergedist
+    if frame != nothing
+      total = mergelabel(lbl, frame.autolabel, dist)
+      merged = length(lbl) + length(frame.autolabel) - length(total)
+      push!(countingmanual, "$(length(lbl))")
+      push!(countingauto, "$(length(frame.autolabel))")
+      push!(countingtotal, "$(length(total))\t($merged merged)")
+    else
+      push!(countingmanual, "--")
+      push!(countingauto, "--")
+      push!(countingtotal, "--")
+    end
+  end
+end
+
+
+function initmodel(currentmodel, currentdensity, currentlbl, 
+                   currentframe, applybutton, acceptbutton, 
+                   mergedist, progress, history)
+
+  # Applying the model
+  foreach(applybutton) do btn
     model, frame = value(currentmodel), value(currentframe)
+
     if model != nothing && frame != nothing
-      dens = value(frame.density)
-      cb(i, n) = setproperty!(progress.widget, :fraction, i / n)
-      dens[:,:] = density_patched(model.model, frame.image, patchsize = 256, callback=cb)
-      # TODO: for peakheights != 100, other upper bound is needed
-      clamp!(dens, 0., 100.)
-      push!(currentdensity, dens)
+      dens = frame.density
+      image = imgtype(model.model) == RGBImage ? frame.image : greyscale(frame.image)
+      m = model.model
+
+      # Need an remote channel through which the working process can send status information
+      const rc = RemoteChannel(() -> Channel{Tuple{Int, Int}}(10), 1)
+
+      # Variable to check if the worker is still running
+      running = true
+
+      # One thread that lets the worker calculate the density
+      @async begin
+        
+        # History update: Computation started
+        push!(history, ApplyModelStart())
+
+        # Calculation on the worker
+        dens[:,:] = @fetch begin
+          cb(i, n) = put!(rc, (i, n))
+          # TODO: make the patchsize an option!
+          d = density_patched(m, image, patchsize = 256, callback = cb)
+          # rescale density to region from 0 to 100
+          clamp.(d / max(maximum(d), 10), 0, 1.) * 100
+        end
+
+        # Update the density signal
+        push!(currentdensity, dens)
+
+        # History update: Computation finished
+        push!(history, ApplyModelEnd())
+        
+        # Indicate that the computation is finished
+        running = false
+      end
+
+      # Second thread to update the progress bar
+      @async begin
+        i, n = 0, 1
+        while i != n
+          i, n = take!(rc)
+          push!(progress, round(Int, i/n*100))
+        end
+        push!(progress, 0)
+      end
+    end
+    return nothing
+  end
+
+  # Accepting the model output
+  foreach(acceptbutton) do btn
+    frame = value(currentframe)
+    if frame != nothing
+      lbl = value(currentlbl)
+      dist = value(mergedist)
+      push!(currentlbl, mergelabel(lbl, frame.autolabel, dist))
+      frame.density[:,:] = 0.
+      push!(currentdensity, frame.density) 
     end
   end
 end
