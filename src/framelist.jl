@@ -21,19 +21,18 @@ function initframelistview(root, list, box, history)
   # Update the framelist and the viewstore each time new images are selected
   foreach(list) do filelist
     fl = value(framelist)
-    frames = []
     index = isempty(fl) ? 1 : maximum(keys(fl)) + 1
-    println("adding frames")
-    for file in filelist
-      frame = Frame(file)
-      push!(frames, frame)
-      #push!(store, (thumbpixbuf(frame), frame.name, index))
-      push!(store, (frame.name, index))
-      fl[index] = frame
-      index += 1
+    @async begin
+      for file in filelist
+        frame = Frame(file)
+        #push!(store, (thumbpixbuf(frame), frame.name, index))
+        push!(store, (frame.name, index))
+        fl[index] = frame
+        push!(framelist, fl)
+        index += 1
+      end
+      push!(history, AddImages(filelist))
     end
-    push!(history, AddImages(filelist))
-    push!(framelist, fl)
   end
 
   # The column view objects needed for each column that is to be displayed

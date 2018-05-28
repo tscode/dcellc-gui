@@ -154,7 +154,7 @@ end
 
 function initmodel(currentmodel, currentdensity, currentlbl, 
                    currentframe, applybutton, acceptbutton, 
-                   mergedist, progress, history)
+                   mergedist, progress, history, worker)
 
   # Applying the model
   foreach(applybutton) do btn
@@ -171,39 +171,49 @@ function initmodel(currentmodel, currentdensity, currentlbl,
       # Variable to check if the worker is still running
       running = true
 
-      # One thread that lets the worker calculate the density
-      @async begin
-        
-        # History update: Computation started
-        push!(history, ApplyModelStart())
+      w = value(worker)
+      
+      if !w.remote # not remote
 
-        # Calculation on the worker
-        dens[:,:] = @fetch begin
-          cb(i, n) = put!(rc, (i, n))
-          # TODO: make the patchsize an option!
-          d = density_patched(m, image, patchsize = 256, callback = cb)
-          # rescale density to region from 0 to 100
-          clamp.(d / max(maximum(d), 10), 0, 1.) * 100
+        info("Begin local density calculation")
+
+        # One thread that lets the worker calculate the density
+        @async begin
+          
+          # History update: Computation started
+          push!(history, ApplyModelStart())
+
+          # Calculation on the worker
+          dens[:,:] = @fetchfrom localworker begin
+            cb(i, n) = put!(rc, (i, n))
+            # TODO: make the patchsize an option!
+            d = density_patched(m, image, patchsize = 256, callback = cb)
+            # rescale density to region from 0 to 100
+            clamp.(d / max(maximum(d), 10), 0, 1.) * 100
+          end
+
+          # Update the density signal
+          push!(currentdensity, dens)
+
+          # History update: Computation finished
+          push!(history, ApplyModelEnd())
+          
+          # Indicate that the computation is finished
+          running = false
         end
 
-        # Update the density signal
-        push!(currentdensity, dens)
-
-        # History update: Computation finished
-        push!(history, ApplyModelEnd())
-        
-        # Indicate that the computation is finished
-        running = false
-      end
-
-      # Second thread to update the progress bar
-      @async begin
-        i, n = 0, 1
-        while i != n
-          i, n = take!(rc)
-          push!(progress, round(Int, i/n*100))
+        # Second thread to update the progress bar
+        @async begin
+          i, n = 0, 1
+          while i != n
+            i, n = take!(rc)
+            push!(progress, round(Int, i/n*100))
+          end
+          push!(progress, 0)
         end
-        push!(progress, 0)
+
+      else # remote
+        info("Begin remote density calculation")
       end
     end
     return nothing

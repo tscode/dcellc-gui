@@ -1,7 +1,4 @@
 
-using GtkReactive
-using IntervalSets
-
 # ---------------------------------------------------------------------------- #
 # Structs that hold all necessary information about one image frame
 
@@ -374,7 +371,6 @@ function runcanvases(imgcanvas, lblcanvas, currentlbl,
 
     # Draw labels if there is an active frame and if labels should be drawn
     if frame != nothing && sl
-      println("DRAWING")
 
       cv  = zr.currentview
       ctx = Graphics.getgc(can)
@@ -411,7 +407,6 @@ function runcanvases(imgcanvas, lblcanvas, currentlbl,
       btn = value(lblcanvas.mouse.motion)
       imgx, imgy = imgcoords(btn, can, zr)
       ns = nearestspotidx(lbl, (imgx, imgy))
-      @show ns
       if ns != nothing
         coords = lbl[ns]
         x, y = canvascoords(coords, can, zr)

@@ -15,7 +15,8 @@ function TrainFrame(id, name, image, label, imagepath, region)
   return TrainFrame(id, name, image, label, imagepath, labelpath, region)
 end
 
-function inittraining(build, trainmodelbutton, addmodellist, modellist, history)
+function inittraining(build, trainmodelbutton, addmodellist, 
+                      modellist, history, worker)
 
   # A dictionary of models and the corresponding constructors
   modeldict = Dict(
@@ -36,27 +37,28 @@ function inittraining(build, trainmodelbutton, addmodellist, modellist, history)
   optimizer = GtkReactive.dropdown(["adam", "rmsprop", "nesterov"], widget=build["trainingOptimizer"])
 
   # Checkboxes
-  batchnorm   = GtkReactive.checkbox(true, widget=build["trainingBatchNormalization"])
-  greyscale   = GtkReactive.checkbox(false, widget=build["trainingGreyscale"])
-  embeddlabel = GtkReactive.checkbox(true, widget=build["trainingEmbeddLabel"])
-  embeddimage = GtkReactive.checkbox(false, widget=build["trainingEmbeddImage"])
+  batchnorm    = GtkReactive.checkbox(true,  widget=build["trainingBatchNorm"])
+  greyscale    = GtkReactive.checkbox(false, widget=build["trainingGreyscale"])
+  embeddlabel  = GtkReactive.checkbox(true,  widget=build["trainingEmbeddLabel"])
+  embeddimage  = GtkReactive.checkbox(false, widget=build["trainingEmbeddImage"])
 
   # Numeric parameters
-  epochs    = GtkReactive.textbox(10, widget=build["trainingEpochs"])
-  patchsize = GtkReactive.textbox(256, widget=build["trainingPatchsize"])
-  patchmode = GtkReactive.textbox(5, widget=build["trainingPatchmode"])
-  batchsize = GtkReactive.textbox(1, widget=build["trainingBatchsize"])
-  kernelsize   = GtkReactive.textbox(7, widget=build["trainingKernelsize"])
-  kernelheight = GtkReactive.textbox(100, widget=build["trainingKernelheight"])
-  learningrate = GtkReactive.textbox(1e-3, widget=build["trainingLearningrate"])
+  # TODO: I would like to use gtksignal=:changed here, but this segfaults when
+  # the inputs become non-compatible to the type. Issue this at GtkReactive. or Gtk.jl!
+  epochs    = textbox(10,  widget=build["trainingEpochs"]) 
+  patchsize = textbox(256, widget=build["trainingPatchsize"])
+  patchmode = textbox(5,   widget=build["trainingPatchmode"])
+  batchsize = textbox(1,   widget=build["trainingBatchsize"])
+  kernelsize   = textbox(7,    widget=build["trainingKernelsize"])
+  kernelheight = textbox(100,  widget=build["trainingKernelheight"])
+  learningrate = textbox(1e-3, widget=build["trainingLearningrate"])
 
   # Buttons
-  exportlesson  = GtkReactive.button("Export Lesson...", widget=build["trainingExportLesson"])
+  exportlesson  = GtkReactive.button("Export Lesson...",  widget=build["trainingExportLesson"])
   starttraining = GtkReactive.button("Train and save...", widget=build["trainingStart"])
 
   # Open the training window per click on the train button
   inittrainwindow(trainwindow, trainmodelbutton)
-
 
   # Exporting labels
   exportlessonfile = exportlessondialog(root, exportlesson)
@@ -85,7 +87,6 @@ function inittraining(build, trainmodelbutton, addmodellist, modellist, history)
 
   # React on changes of the modellist
   foreach(modellist) do list
-    println("HEEEEY")
     for (modelname, _) in list
       pushchoice!(modeldropdown, modelname) 
     end
@@ -103,6 +104,7 @@ function inittraining(build, trainmodelbutton, addmodellist, modellist, history)
       it = value(greyscale) ? GreyscaleImage : RGBImage
       bn = value(batchnorm)
     end
+    #return Lesson(Multiscale3)
     return Lesson(model,
                   imgtype = it,
                   batchnorm = bn,
@@ -126,15 +128,65 @@ function inittraining(build, trainmodelbutton, addmodellist, modellist, history)
   end
 
   foreach(trainedmodelfile) do file
+    file = DCellC.joinext(file, ".dccm")
     lesson = getlesson(true, true)
     if !isempty(lesson.selections)
-      @async begin
-        model = @fetch train(lesson)
-        modelsave(file, model)
-        push!(addmodellist, [file])
+      w = value(worker)
+      if !w.remote
+        Info("Start training on local worker")
+        @async begin
+          model = @fetchfrom localworker train(lesson)
+          modelsave(file, model)
+          push!(addmodellist, [file])
+        end
+      else
+        @async begin
+          # Save lesson file temporarily
+          Info("Start training on remote worker")
+
+          # Host information
+          host = w.host
+          #envsource = ""
+          scriptdir = w.scriptdir
+
+          if host == ""
+            info("No hostname given")
+            return
+          end
+          #"/home/tstaudt/.julia/v0.6/DCellC/scripts"
+
+          # Local and remote temporary file paths
+          loclfile = DCellC.joinext(tempname(), ".dcct")
+          remlfile = joinpath("/tmp", splitdir(loclfile)[2])
+
+          locmfile = file
+          remmfile = joinpath("/tmp", splitdir(locmfile)[2])
+
+          # Save the lesson file and transfer it
+          lessonsave(loclfile, lesson)
+          cpcmd = `scp -C $loclfile $host:$remlfile`
+          println(cpcmd)
+          run(cpcmd)
+
+          # Train using the lesson file
+          trstr = "cd $scriptdir; ./dcellc.jl lesson $remlfile $remmfile"
+          trcmd = `ssh -C $host "$trstr"`
+          println(trcmd)
+          run(trcmd)
+
+          # Copy the resulting lesson file back
+          cpcmd = `scp -C $host:$remmfile $locmfile`
+          println(cpcmd)
+          run(cpcmd)
+
+          # Load the file to the active model list
+          push!(addmodellist, [locmfile])
+        end
       end
-      return nothing
+    else
+      info("empty training set - do nothing")
     end
+    return nothing
   end
 
   # Return the signal that is to be populated in the main window
@@ -244,14 +296,10 @@ function inittrainselection(newtrainframe, canvas, current, currentframe, curren
 
   # Initialize rubber banding
   foreach(canvas.mouse.buttonpress) do btn
-    @show initrubber(btn)
-    @show (btn.modifiers & SHIFT) != 0
     if initrubber(btn) && value(frame) != nothing
       push!(active, true)
       ctxcopy = copy(Graphics.getgc(canvas))
-      @show ctxcopy
       rb.pos1 = rb.pos2 = btn.position
-      @show rb.pos1, rb.pos2
     end
     return nothing
   end
@@ -271,14 +319,11 @@ function inittrainselection(newtrainframe, canvas, current, currentframe, curren
     x1, y1 = imgcoords(bb.xmin, bb.ymin, canvas.widget, zr)
     x2, y2 = imgcoords(bb.xmax, bb.ymax, canvas.widget, zr)
     region = (x1, y1, x2 - x1, y2 - y1)
-    @show region
     label = crop(frame.label, region...)
     image = crop(frame.image, region...)
     tf = TrainFrame(id, frame.name, image, label, frame.path, region)
-    @show tf.name
-    println("here")
     push!(newtrainframe, tf)
-    println("there")
+    info("Sucessfully added new train frame")
   end
 
   # Finish the rubber banding

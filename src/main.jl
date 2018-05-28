@@ -1,24 +1,28 @@
+#! /usr/bin/env julia
+
+# Create a worker thread that conducts some operations in the background
+# ---------------------------------------------------------------------------- #
+
+dir = splitdir(Base.source_path())[1]
+info("DCellC started in directory '$dir'")
+
+const localworker = addprocs(1, enable_threaded_blas=true)[1]
 
 # ---------------------------------------------------------------------------- #
 # Load and import packages
 
-using Knet
-using DCellC
-
-using Gtk
-using GtkReactive
-import Reactive
-import Images
-import ImageTransformations
-import Graphics
-import Cairo
-
-# Create a worker thread that conducts heavy lifting in the background
-# ---------------------------------------------------------------------------- #
-
-if nprocs() == 1 addprocs(1) end
+@everywhere using Knet
 @everywhere using DCellC
-@spawn BLAS.set_num_threads(4) # TODO: Make this an option!
+
+@everywhere using Gtk
+@everywhere using GtkReactive
+@everywhere using IntervalSets
+
+@everywhere import Reactive
+@everywhere import Images
+@everywhere import ImageTransformations
+@everywhere import Graphics
+@everywhere import Cairo
 
 # ---------------------------------------------------------------------------- #
 # Load and import scripts
@@ -32,10 +36,23 @@ include("framelist.jl")
 include("model.jl")
 include("train.jl")
 
+# Also load the file "frame.jl" on the remote worker
+# TODO: loading frames in concurrent thread does not work!
+#@fetchfrom localworker include(joinpath(dir, "general.jl"))
+#@fetchfrom localworker include(joinpath(dir, "history.jl"))
+#@fetchfrom localworker include(joinpath(dir, "dialog.jl"))
+#@fetchfrom localworker include(joinpath(dir, "config.jl"))
+#@fetchfrom localworker include(joinpath(dir, "frame.jl"))
+#@fetchfrom localworker include(joinpath(dir, "framelist.jl"))
+#@fetchfrom localworker include(joinpath(dir, "model.jl"))
+#@fetchfrom localworker include(joinpath(dir, "train.jl"))
+
+
 # ---------------------------------------------------------------------------- #
 # Main function
 
 function main(buildfile = "glade/dcellc.glade")
+
   # Load the glade file
   build = GtkBuilder(filename = buildfile)
 
@@ -73,13 +90,18 @@ function main(buildfile = "glade/dcellc.glade")
   # Managing models
   modeldropdown     = initmodeldropdown(build["modelSelection"])
   loadmodelsbutton  = GtkReactive.button(widget=build["loadModelsButton"])
-  trainmodelbutton  = GtkReactive.togglebutton(false, widget=build["trainModelButton"])
+  trainmodelbutton  = GtkReactive.togglebutton(false, 
+                                               widget=build["trainModelButton"])
 
   # Applying models and counting
   applymodelbutton  = GtkReactive.button(widget=build["applyModelButton"])
   acceptlabelbutton = GtkReactive.button(widget=build["acceptLabelButton"])
-  showdensity       = GtkReactive.togglebutton(false, widget=build["densityToggleButton"])
-  showlabel         = GtkReactive.togglebutton(true, widget=build["labelToggleButton"])
+
+  showdensity       = GtkReactive.togglebutton(false, 
+                                               widget=build["densityToggleButton"])
+
+  showlabel         = GtkReactive.togglebutton(true, 
+                                               widget=build["labelToggleButton"])
 
   countingmanual  = GtkReactive.label("0", widget=build["countingManual"])
   countingauto    = GtkReactive.label("0", widget=build["countingAuto"])
@@ -92,11 +114,13 @@ function main(buildfile = "glade/dcellc.glade")
 
   # The central progress bar
   # TODO: Bug in GtkReactive for progressbar creation, missing ';'
-  mainprogressbar = GtkReactive.progressbar(ClosedInterval(0:100), widget = build["mainProgressBar"])
+  mainprogressbar = GtkReactive.progressbar(ClosedInterval(0:100), 
+                                            widget = build["mainProgressBar"])
 
-  # Some empty signals
-  history   = inithistory()
+  # Initialize history 
+  history = inithistory()
 
+  config, worker = initmainmenu(build)
 
   # Register add-frame dialog
   addframelist = addframedialog(root, addframesbutton)
@@ -130,7 +154,6 @@ function main(buildfile = "glade/dcellc.glade")
   initlabelsavebutton(savelabelbutton, framelist, history)
 
   # Main panel -- work zone
-  config               = initconfig()
   currentzr            = inithelpersignals(current, framelist)
   imgcanvas, lblcanvas = initcanvases(mainframeview)
 
@@ -168,12 +191,12 @@ function main(buildfile = "glade/dcellc.glade")
   # Also initializes the accept button
   initmodel(currentmodel, currentdens, currentlbl, 
             currentframe, applymodelbutton, acceptlabelbutton, 
-            mergedist, mainprogressbar, history)
+            mergedist, mainprogressbar, history, worker)
 
 
   # Training window
   newtrainframe = inittraining(build, trainmodelbutton, 
-                               addmodellist, modellist, history)
+                               addmodellist, modellist, history, worker)
 
 
   inittrainselection(newtrainframe, lblcanvas,
@@ -191,3 +214,4 @@ function main(buildfile = "glade/dcellc.glade")
   wait(c)
 end
 
+main()
