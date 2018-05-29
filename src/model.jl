@@ -152,9 +152,9 @@ function initcountinfo(countingmanual, countingauto, countingtotal,
 end
 
 
-function initmodel(currentmodel, currentdensity, currentlbl, 
-                   currentframe, applybutton, acceptbutton, 
-                   mergedist, progress, history, worker)
+function initmodel(current, currentmodel, currentdensity, 
+                   currentlbl, currentframe, applybutton, 
+                   acceptbutton, mergedist, progress, history, worker)
 
   # Applying the model
   foreach(applybutton) do btn
@@ -172,6 +172,7 @@ function initmodel(currentmodel, currentdensity, currentlbl,
       running = true
 
       w = value(worker)
+      index = value(current)
       
       if !w.remote # not remote
 
@@ -193,7 +194,9 @@ function initmodel(currentmodel, currentdensity, currentlbl,
           end
 
           # Update the density signal
-          push!(currentdensity, dens)
+          if index == value(current)
+            push!(currentdensity, dens)
+          end
 
           # History update: Computation finished
           push!(history, ApplyModelEnd())
@@ -215,56 +218,59 @@ function initmodel(currentmodel, currentdensity, currentlbl,
       else # remote
         info("Begin remote density calculation")
 
-        # Host information
-        host = w.host
-        scriptdir = w.scriptdir
+        @async begin
+          # Host information
+          host = w.host
+          scriptdir = w.scriptdir
 
-        if host == ""
-          warn("No hostname given")
-          return
+          if host == ""
+            warn("No hostname given")
+            return
+          end
+
+          # Local and remote temporary file paths
+          base = tempname()
+          locmfile = DCellC.joinext(base, ".dccm")
+          remmfile = joinpath("/tmp", splitdir(locmfile)[2])
+
+          locifile = DCellC.joinext(base, ".tif")
+          remifile = joinpath("/tmp", splitdir(locifile)[2])
+
+          locdfile = DCellC.joinext(base*"-dens", ".tif")
+          remdfile = joinpath("/tmp", splitdir(locdfile)[2])
+
+          # Save the image and model, and transfer them
+          imgsave(locifile, image)
+          modelsave(locmfile, m)
+
+          cpmcmd = `scp -C $locmfile $host:$remmfile`
+          cpicmd = `scp -C $locifile $host:$remifile`
+          println(cpmcmd)
+          run(cpmcmd)
+          println(cpicmd)
+          run(cpicmd)
+
+          # Apply the model and create the density file
+          apstr = "cd $scriptdir; ./dcellc.jl apply --density $remmfile $remifile"
+          apcmd = `ssh -C $host "$apstr"`
+          println(apcmd)
+          run(apcmd)
+
+          # Copy the density back and load it
+          cpdcmd = `scp -C $host:$remdfile $locdfile`
+          println(cpdcmd)
+          run(cpdcmd)
+
+          dens[:,:] = imgload(locdfile).data * 100
+
+          # Update the density signal
+          if index == value(current)
+            push!(currentdensity, dens)
+          end
+
+          # History update: Computation finished
+          push!(history, ApplyModelEnd())
         end
-
-        # Local and remote temporary file paths
-        base = tempname()
-        locmfile = DCellC.joinext(base, ".dccm")
-        remmfile = joinpath("/tmp", splitdir(locmfile)[2])
-
-        locifile = DCellC.joinext(base, ".tif")
-        remifile = joinpath("/tmp", splitdir(locifile)[2])
-
-        locdfile = DCellC.joinext(base*"-dens", ".tif")
-        remdfile = joinpath("/tmp", splitdir(locdfile)[2])
-
-        # Save the image and model, and transfer them
-        imgsave(locifile, image)
-        modelsave(locmfile, m)
-
-        cpmcmd = `scp -C $locmfile $host:$remmfile`
-        cpicmd = `scp -C $locifile $host:$remifile`
-        println(cpmcmd)
-        run(cpmcmd)
-        println(cpicmd)
-        run(cpicmd)
-
-        # Apply the model and create the density file
-        apstr = "cd $scriptdir; ./dcellc.jl apply --density $remmfile $remifile"
-        apcmd = `ssh -C $host "$apstr"`
-        println(apcmd)
-        run(apcmd)
-
-        # Copy the density back and load it
-        cpdcmd = `scp -C $host:$remdfile $locdfile`
-        println(cpdcmd)
-        run(cpdcmd)
-
-        dens[:,:] = imgload(locdfile).data * 100
-
-        # Update the density signal
-        push!(currentdensity, dens)
-
-        # History update: Computation finished
-        push!(history, ApplyModelEnd())
-
       end
     end
     return nothing
@@ -276,7 +282,8 @@ function initmodel(currentmodel, currentdensity, currentlbl,
     if frame != nothing
       lbl = value(currentlbl)
       dist = value(mergedist)
-      push!(currentlbl, mergelabel(lbl, frame.autolabel, dist))
+      frame.label = mergelabel(lbl, frame.autolabel, dist)
+      push!(currentlbl, frame.label)
       frame.density[:,:] = 0.
       push!(currentdensity, frame.density) 
     end
