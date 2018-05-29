@@ -51,7 +51,7 @@ include("train.jl")
 # ---------------------------------------------------------------------------- #
 # Main function
 
-function main(buildfile = "glade/dcellc.glade")
+function main(buildfile = "$dir/../glade/dcellc.glade")
 
   # Load the glade file
   build = GtkBuilder(filename = buildfile)
