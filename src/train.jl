@@ -133,7 +133,7 @@ function inittraining(build, trainmodelbutton, addmodellist,
     if !isempty(lesson.selections)
       w = value(worker)
       if !w.remote
-        Info("Start training on local worker")
+        info("Start training on local worker")
         @async begin
           model = @fetchfrom localworker train(lesson)
           modelsave(file, model)
@@ -141,8 +141,7 @@ function inittraining(build, trainmodelbutton, addmodellist,
         end
       else
         @async begin
-          # Save lesson file temporarily
-          Info("Start training on remote worker")
+          info("Start training on remote worker")
 
           # Host information
           host = w.host
@@ -150,7 +149,7 @@ function inittraining(build, trainmodelbutton, addmodellist,
           scriptdir = w.scriptdir
 
           if host == ""
-            info("No hostname given")
+            warn("No hostname given")
             return
           end
           #"/home/tstaudt/.julia/v0.6/DCellC/scripts"
