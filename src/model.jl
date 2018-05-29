@@ -214,6 +214,57 @@ function initmodel(currentmodel, currentdensity, currentlbl,
 
       else # remote
         info("Begin remote density calculation")
+
+        # Host information
+        host = w.host
+        scriptdir = w.scriptdir
+
+        if host == ""
+          warn("No hostname given")
+          return
+        end
+
+        # Local and remote temporary file paths
+        base = tempname()
+        locmfile = DCellC.joinext(base, ".dccm")
+        remmfile = joinpath("/tmp", splitdir(locmfile)[2])
+
+        locifile = DCellC.joinext(base, ".tif")
+        remifile = joinpath("/tmp", splitdir(locifile)[2])
+
+        locdfile = DCellC.joinext(base*"-dens", ".tif")
+        remdfile = joinpath("/tmp", splitdir(locdfile)[2])
+
+        # Save the image and model, and transfer them
+        imgsave(locifile, image)
+        modelsave(locmfile, m)
+
+        cpmcmd = `scp -C $locmfile $host:$remmfile`
+        cpicmd = `scp -C $locifile $host:$remifile`
+        println(cpmcmd)
+        run(cpmcmd)
+        println(cpicmd)
+        run(cpicmd)
+
+        # Apply the model and create the density file
+        apstr = "cd $scriptdir; ./dcellc.jl apply --density $remmfile $remifile"
+        apcmd = `ssh -C $host "$apstr"`
+        println(apcmd)
+        run(apcmd)
+
+        # Copy the density back and load it
+        cpdcmd = `scp -C $host:$remdfile $locdfile`
+        println(cpdcmd)
+        run(cpdcmd)
+
+        dens[:,:] = imgload(locdfile).data * 100
+
+        # Update the density signal
+        push!(currentdensity, dens)
+
+        # History update: Computation finished
+        push!(history, ApplyModelEnd())
+
       end
     end
     return nothing
