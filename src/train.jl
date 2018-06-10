@@ -104,7 +104,6 @@ function inittraining(build, trainmodelbutton, addmodellist,
       it = value(greyscale) ? GreyscaleImage : RGBImage
       bn = value(batchnorm)
     end
-    #return Lesson(Multiscale3)
     return Lesson(model,
                   imgtype = it,
                   batchnorm = bn,
@@ -123,11 +122,17 @@ function inittraining(build, trainmodelbutton, addmodellist,
 
   # React on exports of the lessonfile
   foreach(exportlessonfile) do file
+    if file == ""
+      return nothing
+    end
     lesson = getlesson(value(embeddlabel), value(embeddimage))
     lessonsave(file, lesson)
   end
 
   foreach(trainedmodelfile) do file
+    if file == ""
+      return nothing
+    end
     file = DCellC.joinext(file, ".dccm")
     lesson = getlesson(true, true)
     if !isempty(lesson.selections)

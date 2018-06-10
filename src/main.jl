@@ -189,7 +189,7 @@ function main(buildfile = "$dir/../glade/dcellc.glade")
   # Prepare the button that applies the current model on the current frame
   # and updates the density
   # Also initializes the accept button
-  initmodel(currentmodel, currentdens, currentlbl, 
+  initmodel(current, currentmodel, currentdens, currentlbl, 
             currentframe, applymodelbutton, acceptlabelbutton, 
             mergedist, mainprogressbar, history, worker)
 
