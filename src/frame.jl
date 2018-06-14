@@ -428,7 +428,7 @@ function runcanvases(imgcanvas, lblcanvas, currentlbl,
 end
 
 
-function initcounting(currentframe, threshold)
+function initcounting(currentframe, threshold, mergedist)
   # Signal that gets updated if the current label changes 
   lbl = map(currentframe, typ=Any) do frame
     if frame != nothing
@@ -441,10 +441,10 @@ function initcounting(currentframe, threshold)
       return frame.density
     end
   end
-  foreach(dens, threshold) do density, thr
+  foreach(dens, threshold, mergedist) do density, thr, dist
     if density != nothing
       cf = value(currentframe)
-      cf.autolabel = DCellC.label(density, level=thr)
+      cf.autolabel = declutter(DCellC.label(density, level=thr), dist)
     end
     return nothing
   end

@@ -121,15 +121,15 @@ function initmodelinfo(currentmodel, name, typ, date, text)
   end
 end
 
-function mergelabel(manual, auto, dist)
-  data = copy(auto.data)
-  for cm in manual
-    filter!(data) do ca
-      norm([(cm .- ca)...]) > dist
-    end
-  end
-  return Label([manual.data; data])
-end
+#function mergelabel(manual, auto, dist)
+#  data = copy(auto.data)
+#  for cm in manual
+#    filter!(data) do ca
+#      norm([(cm .- ca)...]) > dist
+#    end
+#  end
+#  return Label([manual.data; data])
+#end
 
 function initcountinfo(countingmanual, countingauto, countingtotal, 
                        currentdens, currentlbl, currentframe, threshold, mergedist)
@@ -138,7 +138,7 @@ function initcountinfo(countingmanual, countingauto, countingtotal,
           currentframe, threshold, mergedist) do dens, lbl, frame, thr, dist
     # TODO: Mergedist
     if frame != nothing
-      total = mergelabel(lbl, frame.autolabel, dist)
+      total = DCellC.merge(lbl, frame.autolabel, dist)
       merged = length(lbl) + length(frame.autolabel) - length(total)
       push!(countingmanual, "$(length(lbl))")
       push!(countingauto, "$(length(frame.autolabel))")

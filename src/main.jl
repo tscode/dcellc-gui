@@ -161,7 +161,7 @@ function main(buildfile = "$dir/../glade/dcellc.glade")
   threshold, mergedist = signal(thresholdslider), signal(mergedistslider)
 
   # Current manual label and current density
-  currentlbl, currentdens = initcounting(currentframe, threshold)
+  currentlbl, currentdens = initcounting(currentframe, threshold, mergedist)
 
   # Show the last action in a label-widget, bottom left
   initlastaction(lastaction, history)

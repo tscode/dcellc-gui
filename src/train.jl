@@ -53,6 +53,9 @@ function inittraining(build, trainmodelbutton, addmodellist,
   kernelheight = textbox(100,  widget=build["trainingKernelheight"])
   learningrate = textbox(1e-3, widget=build["trainingLearningrate"])
 
+  # Image operation
+  imageop = textbox("Id()", widget=build["trainingImageOp"])
+
   # Buttons
   exportlesson  = GtkReactive.button("Export Lesson...",  widget=build["trainingExportLesson"])
   starttraining = GtkReactive.button("Train and save...", widget=build["trainingStart"])
@@ -111,7 +114,7 @@ function inittraining(build, trainmodelbutton, addmodellist,
                   selections = selections,
                   optimizer = value(optimizer),
                   lr        = value(learningrate),
-                  imageop   = Id(), # TODO
+                  imageop   = parse(ImageOp, value(imageop)), # TODO
                   epochs    = value(epochs),
                   batchsize = value(batchsize),
                   patchsize = value(patchsize),
