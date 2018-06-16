@@ -5,7 +5,7 @@
 # When the add-frame dialog is called, add the newly selected images to the
 # store (used for display in sidebar) and to the framelist (used for model 
 # application ect...)
-function initframelistview(root, list, box, history)
+function initframelistview(root, list, box, history, config)
 
   # Create the list store
   store = GtkListStore(String, Int)
@@ -24,7 +24,8 @@ function initframelistview(root, list, box, history)
     index = isempty(fl) ? 1 : maximum(keys(fl)) + 1
     @async begin
       for file in filelist
-        frame = Frame(file)
+        scale = value(config).globalscale
+        frame = Frame(file, scale)
         #push!(store, (thumbpixbuf(frame), frame.name, index))
         push!(store, (frame.name, index))
         fl[index] = frame
