@@ -180,6 +180,8 @@ function initmodel(current, currentmodel, currentdensity,
 
         # One thread that lets the worker calculate the density
         @async begin
+
+          at = gpu() >= 0 ? KnetArray{Float32} : Array{Float32}
           
           # History update: Computation started
           push!(history, ApplyModelStart())
@@ -188,7 +190,7 @@ function initmodel(current, currentmodel, currentdensity,
           dens[:,:] = @fetchfrom localworker begin
             cb(i, n) = put!(rc, (i, n))
             # TODO: make the patchsize an option!
-            d = density_patched(m, image, patchsize = 256, callback = cb)
+            d = density_patched(m, image, patchsize = 512, callback = cb, at = at)
             # rescale density to region from 0 to 100
             clamp.(d / max(maximum(d), 10), 0, 1.) * 100
           end

@@ -53,6 +53,9 @@ function inittraining(build, trainmodelbutton, addmodellist,
   kernelheight = textbox(100,  widget=build["trainingKernelheight"])
   learningrate = textbox(1e-3, widget=build["trainingLearningrate"])
 
+  # Network potency
+  potency = GtkReactive.scale(4:1:9, widget=build["trainingPotency"])
+
   # Image operation
   imageop = textbox("Id()", widget=build["trainingImageOp"])
 
@@ -101,20 +104,22 @@ function inittraining(build, trainmodelbutton, addmodellist,
     if cm != nothing
       model = cm.model
       it = imgtype(model)
-      bn = hasbatchnorm(model) 
+      kwargs = Any[]
     else
       model = modeldict[value(modeltype)]
       it = value(greyscale) ? GreyscaleImage : RGBImage
       bn = value(batchnorm)
+      pt = value(potency)
+      kwargs = Any[(:bn, bn), (:potency, pt)]
     end
     return Lesson(model,
                   imgtype = it,
-                  batchnorm = bn,
+                  kwargs  = kwargs,
                   folder    = "", # TODO
                   selections = selections,
                   optimizer = value(optimizer),
                   lr        = value(learningrate),
-                  imageop   = parse(ImageOp, value(imageop)), # TODO
+                  imageop   = parse(ImageOp, value(imageop)),
                   epochs    = value(epochs),
                   batchsize = value(batchsize),
                   patchsize = value(patchsize),
