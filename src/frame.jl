@@ -27,7 +27,7 @@ function Frame(path :: String)
   # Load the image as Images.jl image
   source = Images.load(path)
 
-  # Create a copy of the source image 
+  # Create a copy of the source image
   buffer = copy(Images.channelview(source))
 	
   # Convert this image to an DCellC image used for model training
@@ -61,6 +61,7 @@ function Frame(path :: String)
   frameadapt(buffer, source, vmin, vmax, gamma)
 
   # Also store an intensity histogram in order to calculate vmin/vmax fast
+  # TODO
   chist = cumulativehist(source)
 
   # Instantiate the zoom region for the current image
@@ -80,6 +81,7 @@ function vminmax(chist, pmin, pmax)
   return chist[imin], chist[imax]
 end
 
+# TODO: SCALING
 function frameadapt(buffer, source, vmin, vmax, gamma)
   cview = Images.channelview(Images.adjust_gamma(source, gamma))
   buffer[:,:,:] = (clamp.(cview, vmin, vmax) - vmin) / (vmax - vmin)
@@ -269,7 +271,7 @@ end
 # Draw image and label canvases
 
 function runcanvases(imgcanvas, lblcanvas, currentlbl, 
-                     currentdens, currentframe, currentzr, 
+                     currentautolbl, currentframe, currentzr, 
                      spotconfig, history, showdens, showlabel)
 
   # Mouse signals
@@ -363,7 +365,7 @@ function runcanvases(imgcanvas, lblcanvas, currentlbl,
   preserve(draw(lblcanvas, 
                 currentframe, 
                 currentlbl,
-                currentdens,
+                currentautolbl,
                 currentzr, 
                 nearest, 
                 spotconfig,
@@ -441,33 +443,16 @@ function initcounting(currentframe, threshold, mergedist)
       return frame.density
     end
   end
-  foreach(dens, threshold, mergedist) do density, thr, dist
+  albl = map(dens, threshold, mergedist) do density, thr, dist
     if density != nothing
       cf = value(currentframe)
       cf.autolabel = declutter(DCellC.label(density, level=thr), dist)
+      return cf.autolabel
+    else
+      return Label()
     end
-    return nothing
   end
-  return lbl, dens
+  return lbl, albl, dens
 end
 
-
-
-# ---------------------------------------------------------------------------- #
-# TODO: Stuff that may be needed/implemented later
-
-function zoomregionadapt(canvas, zr)
-  cv = zr.currentview
-  width  = GtkReactive.width(canvas)
-  height = GtkReactive.height(canvas)
-  zwidth  = - (-(cv.x...))
-  zheight = - (-(cv.y...))
-  aspect = min(zwidth / width, zheight / height)
-  rz.currentview.x = (cv.x[1], cv.y[1] + round(Int, aspect * width))
-  rz.currentview.y = (cv.y[1], cv.y[1] + round(Int, aspect * height))
-end
-
-function cumulativehist(image)
-  return []
-end
 

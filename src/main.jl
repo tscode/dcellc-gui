@@ -143,7 +143,8 @@ function main(buildfile = "$dir/../glade/dcellc.glade")
   current, framelist, currentframe = initframelistview(root,
                                                        addframelist, 
 				                                               framelistbox, 
-                                                       history)
+                                                       history, 
+                                                       config)
 
   initgeneralinfo(currentframe,
                   frameinfoname,
@@ -161,7 +162,9 @@ function main(buildfile = "$dir/../glade/dcellc.glade")
   threshold, mergedist = signal(thresholdslider), signal(mergedistslider)
 
   # Current manual label and current density
-  currentlbl, currentdens = initcounting(currentframe, threshold, mergedist)
+  currentlbl, currentautolbl, currentdens = initcounting(currentframe, 
+                                                         threshold, 
+                                                         mergedist)
 
   # Show the last action in a label-widget, bottom left
   initlastaction(lastaction, history)
@@ -178,7 +181,7 @@ function main(buildfile = "$dir/../glade/dcellc.glade")
 
   # Adding and removing of label spots via mouse clicks,
   # drawing the canvases
-  runcanvases(imgcanvas, lblcanvas, currentlbl, currentdens,
+  runcanvases(imgcanvas, lblcanvas, currentlbl, currentautolbl,
               currentframe, currentzr, config, history, 
               signal(showdensity), signal(showlabel))
 
