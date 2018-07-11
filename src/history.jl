@@ -52,6 +52,7 @@ end
 struct SaveLabels <: Action end
 struct ApplyModelStart <: Action end
 struct ApplyModelEnd <: Action end
+struct ResetDensity <: Action end
 
 Base.push!(history :: History, a :: Action) = push!(history.actions, a)
 
@@ -68,4 +69,4 @@ text(a :: RemoveTrainFrame) = "Removed train frame"
 text(a :: SaveLabels) = "Saved labels"
 text(a :: ApplyModelStart) = "Density computation started..."
 text(a :: ApplyModelEnd) = "Density computation finished"
-
+text(a :: ResetDensity) = "Density resetted"

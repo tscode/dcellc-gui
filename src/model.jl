@@ -160,7 +160,18 @@ function initmodel(current, currentmodel, currentdensity,
   foreach(applybutton) do btn
     model, frame = value(currentmodel), value(currentframe)
 
-    if model != nothing && frame != nothing
+    if model == nothing && frame != nothing
+
+      info("Resetting density")
+
+      # Update the density and its signal
+      frame.density[:,:] = 0.
+      push!(currentdensity, frame.density)
+
+      # History update: Density resetted
+      push!(history, ResetDensity())
+
+    elseif frame != nothing
       dens = frame.density
       image = imgtype(model.model) == RGBImage ? frame.image : greyscale(frame.image)
       m = model.model
@@ -284,7 +295,7 @@ function initmodel(current, currentmodel, currentdensity,
     if frame != nothing
       lbl = value(currentlbl)
       dist = value(mergedist)
-      frame.label = mergelabel(lbl, frame.autolabel, dist)
+      frame.label = DCellC.merge(lbl, frame.autolabel, dist)
       push!(currentlbl, frame.label)
       frame.density[:,:] = 0.
       push!(currentdensity, frame.density) 

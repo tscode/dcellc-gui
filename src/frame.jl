@@ -62,7 +62,7 @@ function Frame(path :: String)
 
   # Also store an intensity histogram in order to calculate vmin/vmax fast
   # TODO
-  chist = cumulativehist(source)
+  chist = [] #cumulativehist(source)
 
   # Instantiate the zoom region for the current image
   zr = ZoomRegion(source)

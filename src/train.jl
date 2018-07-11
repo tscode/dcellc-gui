@@ -54,7 +54,7 @@ function inittraining(build, trainmodelbutton, addmodellist,
   learningrate = textbox(1e-3, widget=build["trainingLearningrate"])
 
   # Network potency
-  potency = GtkReactive.scale(4:1:9, widget=build["trainingPotency"])
+  potency = GtkReactive.slider(4:1:9, widget=build["trainingPotency"])
 
   # Image operation
   imageop = textbox("Id()", widget=build["trainingImageOp"])
@@ -80,11 +80,13 @@ function inittraining(build, trainmodelbutton, addmodellist,
       setproperty!(modeltype.widget, :sensitive, true)
       setproperty!(batchnorm.widget, :sensitive, true)
       setproperty!(greyscale.widget, :sensitive, true)
+      setproperty!(potency.widget,   :sensitive, true)
       return nothing
     else 
       setproperty!(modeltype.widget, :sensitive, false)
       setproperty!(batchnorm.widget, :sensitive, false)
       setproperty!(greyscale.widget, :sensitive, false)
+      setproperty!(potency.widget,   :sensitive, false)
 
       ml = value(modellist)
       return ml[dd]
@@ -112,6 +114,7 @@ function inittraining(build, trainmodelbutton, addmodellist,
       pt = value(potency)
       kwargs = Any[(:bn, bn), (:potency, pt)]
     end
+    info("Data augmentation: $(value(imageop))")
     return Lesson(model,
                   imgtype = it,
                   kwargs  = kwargs,

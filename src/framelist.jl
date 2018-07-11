@@ -24,8 +24,7 @@ function initframelistview(root, list, box, history, config)
     index = isempty(fl) ? 1 : maximum(keys(fl)) + 1
     @async begin
       for file in filelist
-        scale = value(config).globalscale
-        frame = Frame(file, scale)
+        frame = Frame(file)
         #push!(store, (thumbpixbuf(frame), frame.name, index))
         push!(store, (frame.name, index))
         fl[index] = frame
